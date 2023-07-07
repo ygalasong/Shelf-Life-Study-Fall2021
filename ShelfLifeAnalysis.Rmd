@@ -1,0 +1,255 @@
+---
+title: "Shelf-life Analysis"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load packages
+```{r}
+library(readr)
+library(readxl)
+library(tidyverse)
+library(EnvStats)
+```
+
+# Load standard plate count (OJ)
+```{r}
+OJ_data <- read_csv("OJ_data.csv", col_types = cols(`Plate Count (CFU/mL)` = col_number()))
+```
+
+# Keep only treatments relevant to hiperbaric presentation
+```{r eval=FALSE, include=FALSE}
+HPB_OJ_SPC <- OJ_SPC %>% 
+  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
+  # Change 0's to 1's for log transfomation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
+                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
+                               .default = Treatment))
+```
+
+# Keep only treatments relevant to IAFP presentation
+```{r}
+IAFP_OJ_SPC <- OJ_data %>% 
+  filter(Treatment %in% 
+           c("No Treatment",
+             "HPP",
+             "HPP + DMDC + NG",
+             "Pasteurization", 
+             "Pasteurization + DMDC + NG")) %>% 
+  # Select only SPC
+  filter(Medium == "SPC") %>%
+  # Change 0's to 1's for log transfomation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(
+    Treatment == "HPP + DMDC + NG" ~ 
+      "HPP + V + N", 
+    Treatment == "Pasteurization" ~ "P",
+    Treatment == "Pasteurization + DMDC + NG" ~
+      "P + V + N",
+    .default = Treatment))
+```
+
+
+# Aggregate Data
+```{r}
+IAFP_OJ_SPC_mean <- aggregate.data.frame(IAFP_OJ_SPC$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_SPC$Treatment, IAFP_OJ_SPC$`Time point (Day)`), function(x) mean(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, SPC = x, .keep = "none") %>% filter(Day < 147)
+```
+
+# Plot pasteurized & HPP-ed OJ shelf-lives without Nagardo & Velcorin
+```{r}
+IAFP_OJ_SPC %>%
+  filter(Treatment %in% c("P", "HPP")) %>%
+  filter(`Time point (Day)` < 126) %>%
+  ggplot(mapping = aes(x = `Time point (Day)`, y = log10(`Plate Count (CFU/mL)`), fill = Treatment))+
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.75) +
+  scale_color_viridis_d(end = 0.6, option = "F") + theme_bw()+
+  geom_hline(yintercept = 5, color = "red") +
+  facet_grid(.~Trial) + #scale_y_continuous(limits = c(0,6)) 
+  labs(y = "Total Aerobic Plate Count (log CFU/mL)") + 
+  theme(text = element_text(size = 16))
+```
+
+#Save the plot
+```{r}
+ggsave("OJ_SPC_WO_Nagardo_by_Trial.tiff", device = "tiff", width = 12, height = 6, units = "in")
+```
+# Plot pasteurized & HPP-ed OJ shelf-lives with Nagardo & Velcorin
+```{r}
+IAFP_OJ_SPC %>%
+  filter(Treatment %in% c("P + V + N", "HPP + V + N")) %>%
+  filter(`Time point (Day)` < 126) %>%
+  ggplot(mapping = aes(x = `Time point (Day)`, y = log10(`Plate Count (CFU/mL)`), fill = Treatment))+
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.75) +
+  scale_color_viridis_d(end = 0.6, option = "F") + theme_bw()+
+  geom_hline(yintercept = 5, color = "red") +
+  facet_grid(.~Trial) + scale_y_continuous(limits = c(0,6)) + labs(y = "Total Aerobic Plate Count (log CFU/mL)") + 
+  theme(text = element_text(size = 16))
+  
+```
+
+#Save the plot
+```{r}
+ggsave("OJ_SPC_with_Nagardo_by_Trial.tiff", device = "tiff", width = 12, height = 6, units = "in")
+```
+
+
+# Plot changes in microbial counts over the shelf-life
+```{r}
+IAFP_OJ_SPC_mean %>% 
+  ggplot(mapping = aes(x = Day, y = SPC, fill = Treatment))+
+  #geom_bar(stat = "identity", position = "dodge")
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.75) +
+  scale_color_viridis_d(direction = -1) + theme_minimal()+
+  geom_hline(yintercept = 5, color = "red") + 
+  theme(text = element_text(size = 16)) + labs(y = "Total Aerobic Plate Count in log(CFU/mL)", x = "Time (Days)")
+```
+
+#Save the plot
+```{r}
+ggsave("IAFP_OJ_SPC.tiff", device = "tiff", width = 6, height = 6, units = "in")
+```
+
+# Load yeast & mold count (OJ)
+```{r}
+OJ_APDA <- read_csv("OJ_APDA.csv")
+```
+
+# Keep only treatments relevant to hiperbaric presentation
+```{r}
+HPB_OJ_APDA <- OJ_APDA %>% 
+  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
+  # Change 0's to 1's for log transfomation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
+                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
+                               .default = Treatment))
+```
+
+# Keep only treatments relevant to IAFP presentation
+```{r}
+IAFP_OJ_APDA <- OJ_APDA %>% 
+  filter(Treatment %in% c("Raw (Control)",
+                          "HPP",
+                          "HPP + Velcorin + Nagardo",
+                          "Pasteurized",
+                          "Pasteurized + Velcorin + Nagardo")) %>%
+  # Change 0's to 1's for log transfomation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
+                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + V + N",
+                               Treatment == "Pasteurized" ~ "P", Treatment == "Pasteurized + Velcorin + Nagardo" ~ "P + V + N",
+                               .default = Treatment))
+```
+# Aggregate Data
+```{r}
+IAFP_OJ_APDA_mean <- aggregate.data.frame(IAFP_OJ_APDA$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_APDA$Treatment, IAFP_OJ_APDA$`Time point (Day)`), function(x) mean(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, APDA = x, .keep = "none") #%>% filter(Day < 100)
+```
+
+# Plot changes in yeast & mold counts over the shelf-life
+```{r}
+IAFP_OJ_APDA_mean %>% 
+  ggplot(mapping = aes(x = Day, y = APDA, fill = Treatment))+
+  #geom_bar(stat = "identity", position = "dodge")
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.5) +
+  scale_color_viridis_d(direction = -1) + theme_minimal()+
+  geom_hline(yintercept = 5, color = "red") + 
+  theme(text = element_text(size = 16)) + labs(y = "Yeast & Mold Count in log(CFU/mL)", x = "Time (Days)")
+```
+
+#Save the plot
+```{r}
+ggsave("IAFP_OJ_APDA.tiff", device = "tiff", width = 6, height = 6, units = "in")
+```
+
+# Load cider data
+```{r}
+Cider_data <- read_excel("Cider_data.xlsx")
+```
+
+#Extract SPC data & Keep only treatments relevant to hiperbaric presentation
+```{r}
+HPB_CD_SPC <- Cider_data %>% 
+  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
+  filter(Medium == "SPC") %>%
+  # Change 0's to 1's for log transfomation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
+                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
+                               .default = Treatment))
+```
+
+# Aggregate Data
+```{r}
+HPB_CD_SPC_mean <- aggregate.data.frame(HPB_CD_SPC$`Plate Count (CFU/mL)`, by = list(HPB_CD_SPC$Treatment, HPB_CD_SPC$`Time point (Day)`), function(x) mean(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, SPC = x, .keep = "none") #%>% filter(Day < 100)
+```
+
+# Plot changes in microbial counts over the shelf-life
+```{r}
+HPB_CD_SPC_mean %>% 
+  ggplot(mapping = aes(x = Day, y = SPC, fill = Treatment))+
+  #geom_bar(stat = "identity", position = "dodge")
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.5) +
+  scale_color_viridis_d(option = "D") + theme_minimal()+
+  geom_hline(yintercept = 5, color = "red") + 
+  theme(text = element_text(size = 16)) + labs(y = "Total Aerobic Plate Count in log(CFU/mL)")
+```
+
+#Extract APDA data & Keep only treatments relevant to hiperbaric presentation
+```{r}
+HPB_CD_APDA <- Cider_data %>% 
+  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
+  filter(Medium == "APDA") %>%
+  # Change 0's to 1's for log transformation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
+                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
+                               .default = Treatment))
+```
+
+# Aggregate Data
+```{r}
+HPB_CD_APDA_mean <- aggregate.data.frame(HPB_CD_APDA$`Plate Count (CFU/mL)`, by = list(HPB_CD_APDA$Treatment, HPB_CD_APDA$`Time point (Day)`), function(x) mean(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, APDA = x, .keep = "none") #%>% filter(Day < 100)
+```
+
+# Plot changes in microbial counts over the shelf-life
+```{r}
+HPB_CD_APDA_mean %>% 
+  ggplot(mapping = aes(x = Day, y = APDA, fill = Treatment))+
+  #geom_bar(stat = "identity", position = "dodge")
+  geom_line(aes(color = Treatment), linewidth = 1) +
+  geom_point(aes(color = Treatment, shape = Treatment), 
+             size = 4, alpha = 0.5) +
+  scale_color_viridis_d(option = "D") + theme_minimal()+
+  geom_hline(yintercept = 5, color = "red") + 
+  theme(text = element_text(size = 16)) + labs(y = "Yeast & Mold Count in log(CFU/mL)")
+```
