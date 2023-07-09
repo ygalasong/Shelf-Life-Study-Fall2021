@@ -20,19 +20,6 @@ library(EnvStats)
 OJ_data <- read_csv("OJ_data.csv", col_types = cols(`Plate Count (CFU/mL)` = col_number()))
 ```
 
-# Keep only treatments relevant to hiperbaric presentation
-```{r eval=FALSE, include=FALSE}
-HPB_OJ_SPC <- OJ_SPC %>% 
-  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
-  # Change 0's to 1's for log transfomation 
-  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
-                                            .default = `Plate Count (CFU/mL)`)) %>%
-  # Rename treatmens
-  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
-                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
-                               .default = Treatment))
-```
-
 # Keep only treatments relevant to IAFP presentation
 ```{r}
 IAFP_OJ_SPC <- OJ_data %>% 
@@ -44,7 +31,7 @@ IAFP_OJ_SPC <- OJ_data %>%
              "Pasteurization + DMDC + NG")) %>% 
   # Select only SPC
   filter(Medium == "SPC") %>%
-  # Change 0's to 1's for log transfomation 
+  # Change 0's to 1's for log transformation 
   mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
                                             .default = `Plate Count (CFU/mL)`)) %>%
   # Rename treatmens
@@ -60,9 +47,15 @@ IAFP_OJ_SPC <- OJ_data %>%
 
 # Aggregate Data
 ```{r}
+#Calculate mean log CFU/mL
 IAFP_OJ_SPC_mean <- aggregate.data.frame(IAFP_OJ_SPC$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_SPC$Treatment, IAFP_OJ_SPC$`Time point (Day)`), function(x) mean(log10(x))) %>%
   mutate(Treatment = Group.1, Day = Group.2, SPC = x, .keep = "none") %>% filter(Day < 147)
+
+#Calculate sd log CFU/mL
+IAFP_OJ_SPC_sd <- aggregate.data.frame(IAFP_OJ_SPC$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_SPC$Treatment, IAFP_OJ_SPC$`Time point (Day)`), function(x) sd(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, SPC_SD = x, .keep = "none") %>% filter(Day < 147)
 ```
+
 
 # Plot pasteurized & HPP-ed OJ shelf-lives without Nagardo & Velcorin
 ```{r}
@@ -126,43 +119,38 @@ ggsave("IAFP_OJ_SPC.tiff", device = "tiff", width = 6, height = 6, units = "in")
 
 # Load yeast & mold count (OJ)
 ```{r}
-OJ_APDA <- read_csv("OJ_APDA.csv")
-```
-
-# Keep only treatments relevant to hiperbaric presentation
-```{r}
-HPB_OJ_APDA <- OJ_APDA %>% 
-  filter(Treatment %in% c("Raw (Control)","HPP","HPP + Velcorin + Nagardo")) %>%
-  # Change 0's to 1's for log transfomation 
+IAFP_OJ_APDA <- OJ_data %>% 
+  filter(Treatment %in% 
+           c("No Treatment",
+             "HPP",
+             "HPP + DMDC + NG",
+             "Pasteurization", 
+             "Pasteurization + DMDC + NG")) %>% 
+  # Select only APDA
+  filter(Medium == "APDA") %>%
+  # Change 0's to 1's for log transformation 
   mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
                                             .default = `Plate Count (CFU/mL)`)) %>%
   # Rename treatmens
-  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
-                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + NG + DMDC",
-                               .default = Treatment))
+  mutate(Treatment = case_when(
+    Treatment == "HPP + DMDC + NG" ~ 
+      "HPP + V + N", 
+    Treatment == "Pasteurization" ~ "P",
+    Treatment == "Pasteurization + DMDC + NG" ~
+      "P + V + N",
+    .default = Treatment))
 ```
 
-# Keep only treatments relevant to IAFP presentation
-```{r}
-IAFP_OJ_APDA <- OJ_APDA %>% 
-  filter(Treatment %in% c("Raw (Control)",
-                          "HPP",
-                          "HPP + Velcorin + Nagardo",
-                          "Pasteurized",
-                          "Pasteurized + Velcorin + Nagardo")) %>%
-  # Change 0's to 1's for log transfomation 
-  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
-                                            .default = `Plate Count (CFU/mL)`)) %>%
-  # Rename treatmens
-  mutate(Treatment = case_when(Treatment == "Raw (Control)"~ "No Treatment",
-                               Treatment == "HPP + Velcorin + Nagardo" ~ "HPP + V + N",
-                               Treatment == "Pasteurized" ~ "P", Treatment == "Pasteurized + Velcorin + Nagardo" ~ "P + V + N",
-                               .default = Treatment))
-```
+
 # Aggregate Data
 ```{r}
+# calculate mean log CFU/mL
 IAFP_OJ_APDA_mean <- aggregate.data.frame(IAFP_OJ_APDA$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_APDA$Treatment, IAFP_OJ_APDA$`Time point (Day)`), function(x) mean(log10(x))) %>%
-  mutate(Treatment = Group.1, Day = Group.2, APDA = x, .keep = "none") #%>% filter(Day < 100)
+  mutate(Treatment = Group.1, Day = Group.2, APDA = x, .keep = "none") %>% filter(Day < 147)
+
+# calculate mean sd CFU/mL
+IAFP_OJ_APDA_sd <- aggregate.data.frame(IAFP_OJ_APDA$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_APDA$Treatment, IAFP_OJ_APDA$`Time point (Day)`), function(x) sd(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, APDA = x, .keep = "none") %>% filter(Day < 147)
 ```
 
 # Plot changes in yeast & mold counts over the shelf-life
@@ -181,6 +169,42 @@ IAFP_OJ_APDA_mean %>%
 #Save the plot
 ```{r}
 ggsave("IAFP_OJ_APDA.tiff", device = "tiff", width = 6, height = 6, units = "in")
+```
+
+# Load LAB Petrifilm count (OJ)
+```{r}
+IAFP_OJ_LAB <- OJ_data %>% 
+  filter(Treatment %in% 
+           c("No Treatment",
+             "HPP",
+             "HPP + DMDC + NG",
+             "Pasteurization", 
+             "Pasteurization + DMDC + NG")) %>% 
+  # Select only LAB Petrifilm
+  filter(Medium == "LAB Petrifilm") %>%
+  # Change 0's to 1's for log transformation 
+  mutate(`Plate Count (CFU/mL)` = case_when(`Plate Count (CFU/mL)` == 0 ~ 1,
+                                            .default = `Plate Count (CFU/mL)`)) %>%
+  # Rename treatmens
+  mutate(Treatment = case_when(
+    Treatment == "HPP + DMDC + NG" ~ 
+      "HPP + V + N", 
+    Treatment == "Pasteurization" ~ "P",
+    Treatment == "Pasteurization + DMDC + NG" ~
+      "P + V + N",
+    .default = Treatment))
+```
+
+
+# Aggregate Data
+```{r}
+# calculate mean log CFU/mL
+IAFP_OJ_LAB_mean <- aggregate.data.frame(IAFP_OJ_LAB$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_LAB$Treatment, IAFP_OJ_LAB$`Time point (Day)`), function(x) mean(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, LAB = x, .keep = "none") %>% filter(Day < 147)
+
+# calculate mean sd CFU/mL
+IAFP_OJ_LAB_sd <- aggregate.data.frame(IAFP_OJ_LAB$`Plate Count (CFU/mL)`, by = list(IAFP_OJ_LAB$Treatment, IAFP_OJ_LAB$`Time point (Day)`), function(x) sd(log10(x))) %>%
+  mutate(Treatment = Group.1, Day = Group.2, LAB = x, .keep = "none") %>% filter(Day < 147)
 ```
 
 # Load cider data
